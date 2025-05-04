@@ -1,0 +1,14 @@
+---
+title: "Data-Driven Op-Ed"
+author: "Riki Itokazu"
+date: "2025-05-04"
+output: html_document
+---
+
+# Data-Driven Op-Ed: Videogame usage vs. Psychological well-being
+
+
+### Setup environment
+```{r}
+gaming <- read.csv("gamingstudy.csv")
+```
