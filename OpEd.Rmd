@@ -5,10 +5,143 @@ date: "2025-05-04"
 output: html_document
 ---
 
-# Data-Driven Op-Ed: Videogame usage vs. Psychological well-being
+# Videogame Usage vs. Psychological Well-Being
 
 
 ### Setup environment
 ```{r}
 gaming <- read.csv("gamingstudy.csv")
 ```
+
+### Look at distributions of GAD_T, SPIN_T, SWL_T
+```{r}
+library(ggplot2)
+
+gaming$GAD_T = as.numeric(gaming$GAD_T)
+gaming$SPIN_T = as.numeric(gaming$SPIN_T)
+gaming$SWL_T = as.numeric(gaming$SWL_T)
+gaming$Hours = as.numeric(gaming$Hours)
+
+ggplot(gaming, aes(x = GAD_T)) +
+  geom_histogram(binwidth = 1, alpha = 0.7, position = "dodge", color = "black") +
+  labs(title = "Histogram of GAD_T", x = "GAD_T Score", y = "Frequency") +
+  theme_minimal()
+
+ggplot(gaming, aes(x = SPIN_T)) +
+  geom_histogram(binwidth = 1, alpha = 0.7, position = "dodge", color = "black") +
+  labs(title = "Histogram of SPIN_T", x = "SPIN_T Score", y = "Frequency") +
+  theme_minimal()
+
+ggplot(gaming, aes(x = SWL_T)) +
+  geom_histogram(binwidth = 1, alpha = 0.7, position = "dodge", color = "black") +
+  labs(title = "Histogram of SWL_T", x = "SWL_T Score", y = "Frequency") +
+  theme_minimal()
+```
+
+### T-test for all individuals that play more than 20 hours
+```{r}
+# hours_mean ~ 20 hours per week
+hours_mean <- mean(gaming$Hours, na.rm = TRUE)
+
+# Separate into two groups, whether they play more than the avg amount per week
+gaming$hours_threshold <- ifelse(gaming$Hours > 20, "More than 20 hours", "20 hours or less")
+
+# Perform a t-test comparing GAD_T between these two groups
+t_test_gad_hours_group <- t.test(GAD_T ~ hours_threshold, data = gaming, na.rm = TRUE)
+print(t_test_gad_hours_group)
+```
+
+### T-test for employed individuals or students that play between 3 and 15 hours
+```{r}
+gaming_employed = gaming[gaming$Work == "Employed" | gaming$Work == "Student at college / university", ]
+
+# hours for employed ~20 hours
+new_hours_mean <- mean(gaming_employed$Hours, na.rm = TRUE)
+
+gaming_employed$levels <- ifelse(gaming_employed$Hours < 3, "Little to None", 
+                              ifelse(gaming_employed$Hours <= 15, "Sometimes", "More than 15 hours"))
+
+subset_two_groups <- gaming_employed[gaming_employed$levels %in% c("Little to None", "Sometimes"), ]
+
+# Step 3: Run t-test on GAD_T comparing the two groups
+t_test_result <- t.test(GAD_T ~ levels, data = subset_two_groups)
+print(t_test_result)
+```
+### T-test for employed individuals or students that play more than 15 hours
+```{r}
+subset_two_groups <- gaming_employed[gaming_employed$levels %in% c("Sometimes", "More than 15 hours"), ]
+
+# Step 3: Run t-test on GAD_T comparing the two groups
+t_test_result <- t.test(GAD_T ~ levels, data = subset_two_groups)
+print(t_test_result)
+```
+
+### SPIN (social phobia inventory score)
+```{r}
+subset_two_groups <- gaming_employed[gaming_employed$levels %in% c("Little to None", "Sometimes"), ]
+
+# Step 3: Run t-test on GAD_T comparing the two groups
+t_test_result <- t.test(SPIN_T ~ levels, data = subset_two_groups)
+print(t_test_result)
+```
+### A model on SWL_T
+```{r}
+model <- lm(SWL_T ~ Hours + Degree + Work, data = gaming)
+summary(model)
+```
+
+
+### Visualization on GAD_T
+```{r}
+ggplot(gaming[!is.na(gaming$levels), ], aes(x = levels, y = GAD_T)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Anxiety (GAD_T) Across Gaming Frequency",
+       x = "Gaming Frequency", y = "GAD_T Score")
+
+
+```
+
+### More visualizations
+```{r}
+# Step 1: Calculate IQR bounds
+Q1 <- quantile(gaming$Hours, 0.25, na.rm = TRUE)
+Q3 <- quantile(gaming$Hours, 0.75, na.rm = TRUE)
+IQR_value <- Q3 - Q1
+
+# Step 2: Define lower and upper bounds
+lower_bound <- Q1 - 1.5 * IQR_value
+upper_bound <- Q3 + 1.5 * IQR_value
+
+# Step 3: Filter the dataset
+gaming_no_outliers <- gaming[gaming$Hours >= lower_bound & gaming$Hours <= upper_bound, ]
+mean_swl_work <- aggregate(SWL_T ~ Work, data = gaming, FUN = function(x) mean(x, na.rm = TRUE))
+
+ggplot(mean_swl_work, aes(x = reorder(Work, -SWL_T), y = SWL_T)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Average SWL_T by Work Status", x = "Work Status", y = "Mean SWL_T") +
+  theme_minimal() +
+  coord_flip()
+
+mean_swl_levels <- aggregate(SWL_T ~ levels, data = gaming, FUN = function(x) mean(x, na.rm = TRUE))
+
+ggplot(mean_swl_levels, aes(x = levels, y = SWL_T, fill = levels)) +
+  geom_bar(stat = "identity") +
+  labs(title = "SWL_T by Gaming Intensity", x = "Gaming Level", y = "Mean SWL_T") +
+  theme_minimal()
+```
+### Some more
+```{r}
+gaming$Singleplayer <- ifelse(gaming$Playstyle %in% c("Multiplayer - online - with real life friends", 
+                                                        "Multiplayer - online - with strangers"), 
+                                   "Multiplayer", 
+                                   "Single-player")
+
+mean_spin <- aggregate(SPIN_T ~ Singleplayer, data = gaming, FUN = function(x) mean(x, na.rm = TRUE))
+
+ggplot(mean_spin, aes(x = Singleplayer, y = SPIN_T, fill = Singleplayer)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Average SPIN_T by Game Type", x = "Game Type", y = "Mean SPIN_T") +
+  theme_minimal()
+```
+
+
