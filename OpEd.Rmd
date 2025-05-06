@@ -17,6 +17,18 @@ gaming <- read.csv("gamingstudy.csv")
 ```{r}
 library(ggplot2)
 
+# Step 1: Calculate IQR bounds
+Q1 <- quantile(gaming$Hours, 0.25, na.rm = TRUE)
+Q3 <- quantile(gaming$Hours, 0.75, na.rm = TRUE)
+IQR_value <- Q3 - Q1
+
+# Step 2: Define lower and upper bounds
+lower_bound <- Q1 - 1.5 * IQR_value
+upper_bound <- Q3 + 1.5 * IQR_value
+
+# Step 3: Filter the dataset
+gaming <- gaming[gaming$Hours >= lower_bound & gaming$Hours <= upper_bound, ]
+
 gaming$GAD_T = as.numeric(gaming$GAD_T)
 gaming$SPIN_T = as.numeric(gaming$SPIN_T)
 gaming$SWL_T = as.numeric(gaming$SWL_T)
@@ -36,12 +48,55 @@ ggplot(gaming, aes(x = SWL_T)) +
   geom_histogram(binwidth = 1, alpha = 0.7, position = "dodge", color = "black") +
   labs(title = "Histogram of SWL_T", x = "SWL_T Score", y = "Frequency") +
   theme_minimal()
+
+ggplot(gaming, aes(x = Hours)) +
+  geom_histogram(binwidth = 1, alpha = 0.7, position = "dodge", color = "black") +
+  labs(title = "Histogram of Hours Played Per Week", x = "Hours Per Week", y = "Frequency") +
+  theme_minimal()
+```
+### Some metadata
+```{r}
+gaming$levels <- ifelse(gaming$Hours < 10, "Less than 10", 
+                              ifelse(gaming$Hours <= 20, "10-20", "More than 20"))
+
+# Count the number of occurrences for each level
+levels_counts <- as.data.frame(table(gaming$levels))
+colnames(levels_counts) <- c("levels", "n")
+
+# Compute percentage
+levels_counts$percentage <- levels_counts$n / sum(levels_counts$n) * 100
+
+# Create labels using paste (adds space by default)
+levels_counts$label <- paste(levels_counts$levels, "\n", round(levels_counts$percentage, 1), "%", sep = "")
+ggplot(levels_counts, aes(x = "", y = percentage, fill = levels)) +
+  geom_col(width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  geom_text(aes(label = label), position = position_stack(vjust = 0.5)) +
+  theme_void() +
+  labs(title = "Gaming Time Distribution") +
+  scale_fill_brewer(palette = "Pastel1")
+
+# Filter to people under 25
+under25 <- gaming[gaming$Age < 30, ]
+
+# Count how many people fall into each level
+levels_counts_under25 <- as.data.frame(table(under25$levels))
+colnames(levels_counts_under25) <- c("levels", "count")
+
+# Calculate percentages
+levels_counts_under25$percentage <- levels_counts_under25$count / sum(levels_counts_under25$count) * 100
+
+# View result
+print(levels_counts_under25)
+
+
 ```
 
 ### T-test for all individuals that play more than 20 hours
 ```{r}
 # hours_mean ~ 20 hours per week
 hours_mean <- mean(gaming$Hours, na.rm = TRUE)
+print(hours_mean)
 
 # Separate into two groups, whether they play more than the avg amount per week
 gaming$hours_threshold <- ifelse(gaming$Hours > 20, "More than 20 hours", "20 hours or less")
@@ -49,6 +104,8 @@ gaming$hours_threshold <- ifelse(gaming$Hours > 20, "More than 20 hours", "20 ho
 # Perform a t-test comparing GAD_T between these two groups
 t_test_gad_hours_group <- t.test(GAD_T ~ hours_threshold, data = gaming, na.rm = TRUE)
 print(t_test_gad_hours_group)
+
+
 ```
 
 ### T-test for employed individuals or students that play between 3 and 15 hours
@@ -129,19 +186,6 @@ ggplot(mean_swl_levels, aes(x = levels, y = SWL_T, fill = levels)) +
   labs(title = "SWL_T by Gaming Intensity", x = "Gaming Level", y = "Mean SWL_T") +
   theme_minimal()
 ```
-### Some more
-```{r}
-gaming$Singleplayer <- ifelse(gaming$Playstyle %in% c("Multiplayer - online - with real life friends", 
-                                                        "Multiplayer - online - with strangers"), 
-                                   "Multiplayer", 
-                                   "Single-player")
-
-mean_spin <- aggregate(SPIN_T ~ Singleplayer, data = gaming, FUN = function(x) mean(x, na.rm = TRUE))
-
-ggplot(mean_spin, aes(x = Singleplayer, y = SPIN_T, fill = Singleplayer)) +
-  geom_bar(stat = "identity") +
-  labs(title = "Average SPIN_T by Game Type", x = "Game Type", y = "Mean SPIN_T") +
-  theme_minimal()
 ```
 
 
